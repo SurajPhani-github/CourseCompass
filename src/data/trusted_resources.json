@@ -1,0 +1,152 @@
+[
+    {
+        "title": "Hugging Face Transformers",
+        "type": "GitHub Repository",
+        "url": "https://github.com/huggingface/transformers",
+        "tags": ["artificial intelligence", "nlp", "deep learning", "machine learning", "pytorch"],
+        "quality_score": 0.98,
+        "difficulty": 3,
+        "popularity": 130000,
+        "description": "State-of-the-art Machine Learning for Pytorch, TensorFlow, and JAX. Essential repo for LLM and deep learning implementations."
+    },
+    {
+        "title": "Attention Is All You Need",
+        "type": "Research Paper",
+        "url": "https://arxiv.org/abs/1706.03762",
+        "tags": ["deep learning", "nlp", "transformer", "neural networks", "artificial intelligence"],
+        "quality_score": 0.99,
+        "difficulty": 4,
+        "popularity": 80000,
+        "description": "The seminal paper establishing the Transformer architecture. Required reading for AI engineers."
+    },
+    {
+        "title": "Pandas Official Documentation",
+        "type": "Documentation",
+        "url": "https://pandas.pydata.org/docs/",
+        "tags": ["data analysis", "python", "data engineering", "pandas"],
+        "quality_score": 0.95,
+        "difficulty": 1,
+        "popularity": 50000,
+        "description": "The official handbook for Pandas data manipulation. Vital for feature engineering and basic analysis."
+    },
+    {
+        "title": "Scikit-Learn Official User Guide",
+        "type": "Documentation",
+        "url": "https://scikit-learn.org/stable/user_guide.html",
+        "tags": ["machine learning", "python", "scikit-learn", "statistics", "data science"],
+        "quality_score": 0.96,
+        "difficulty": 2,
+        "popularity": 60000,
+        "description": "Comprehensive guide to classic machine learning models: SVMs, Random Forests, Regression, and Clustering."
+    },
+    {
+        "title": "Deep Learning (Goodfellow et al.)",
+        "type": "Textbook",
+        "url": "https://www.deeplearningbook.org/",
+        "tags": ["deep learning", "mathematics", "neural networks", "calculus", "artificial intelligence"],
+        "quality_score": 0.99,
+        "difficulty": 4,
+        "popularity": 200000,
+        "description": "The authoritative textbook on Deep Learning mathematics and architectures by Ian Goodfellow."
+    },
+    {
+        "title": "PyTorch Tutorials",
+        "type": "Documentation",
+        "url": "https://pytorch.org/tutorials/",
+        "tags": ["deep learning", "pytorch", "neural networks", "python"],
+        "quality_score": 0.94,
+        "difficulty": 2,
+        "popularity": 90000,
+        "description": "Hands-on tutorials for implementing neural networks in PyTorch."
+    },
+    {
+        "title": "FastAPI Framework",
+        "type": "GitHub Repository",
+        "url": "https://github.com/tiangolo/fastapi",
+        "tags": ["python", "web development", "api", "backend", "fastapi"],
+        "quality_score": 0.97,
+        "difficulty": 2,
+        "popularity": 75000,
+        "description": "High performance web framework for building APIs with Python 3.8+."
+    },
+    {
+        "title": "React.js Documentation",
+        "type": "Documentation",
+        "url": "https://react.dev/",
+        "tags": ["javascript", "frontend", "web development", "react"],
+        "quality_score": 0.98,
+        "difficulty": 2,
+        "popularity": 250000,
+        "description": "The cornerstone documentation for the world's most popular frontend framework."
+    },
+    {
+        "title": "Eloquent JavaScript",
+        "type": "Textbook",
+        "url": "https://eloquentjavascript.net/",
+        "tags": ["javascript", "web development", "frontend", "programming basics"],
+        "quality_score": 0.95,
+        "difficulty": 1,
+        "popularity": 150000,
+        "description": "A modern introduction to programming and JavaScript. Best for beginners."
+    },
+    {
+        "title": "System Design Primer",
+        "type": "GitHub Repository",
+        "url": "https://github.com/donnemartin/system-design-primer",
+        "tags": ["architecture", "software engineering", "backend", "system design", "database"],
+        "quality_score": 0.99,
+        "difficulty": 3,
+        "popularity": 280000,
+        "description": "The definitive open-source guide to learning how to design large-scale systems."
+    },
+    {
+        "title": "The Hundred-Page Machine Learning Book",
+        "type": "Textbook",
+        "url": "http://themlbook.com/",
+        "tags": ["machine learning", "data science"],
+        "quality_score": 0.93,
+        "difficulty": 2,
+        "popularity": 100000,
+        "description": "A compact, highly practical introduction to ML concepts."
+    },
+    {
+        "title": "Linux Kernel Documentation",
+        "type": "Documentation",
+        "url": "https://www.kernel.org/doc/html/latest/",
+        "tags": ["linux", "operating systems", "c", "systems programming"],
+        "quality_score": 0.9,
+        "difficulty": 5,
+        "popularity": 30000,
+        "description": "Deep dive into OS level constraints, scheduling, memory management, and file systems."
+    },
+    {
+        "title": "LangChain Framework",
+        "type": "GitHub Repository",
+        "url": "https://github.com/langchain-ai/langchain",
+        "tags": ["artificial intelligence", "nlp", "llm", "python"],
+        "quality_score": 0.94,
+        "difficulty": 3,
+        "popularity": 95000,
+        "description": "Building applications with LLMs through composability."
+    },
+    {
+        "title": "SQL Tutorial (W3Schools)",
+        "type": "Documentation",
+        "url": "https://www.w3schools.com/sql/",
+        "tags": ["sql", "databases", "data engineering", "data analysis"],
+        "quality_score": 0.85,
+        "difficulty": 1,
+        "popularity": 500000,
+        "description": "Quick, highly accessible reference for relational database queries."
+    },
+    {
+        "title": "Docker Official Docs",
+        "type": "Documentation",
+        "url": "https://docs.docker.com/",
+        "tags": ["devops", "docker", "cloud", "containers"],
+        "quality_score": 0.95,
+        "difficulty": 2,
+        "popularity": 150000,
+        "description": "The industry standard for containerization and micro-service deployments."
+    }
+]

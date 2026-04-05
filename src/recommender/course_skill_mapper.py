@@ -102,3 +102,17 @@ class CourseSkillMapper:
                     matches.append((cid, score))
         matches.sort(key=lambda x: x[1], reverse=True)
         return matches
+
+    def get_courses_for_skill(self, node_id: str, top_k: int = 10) -> list[dict]:
+        """Returns the top_k matching courses as full dictionaries."""
+        matches = self.get_courses_for_node(node_id)
+        
+        results = []
+        for cid, score in matches[:top_k]:
+            row = self.enriched[self.enriched["course_id"].astype(str) == str(cid)]
+            if not row.empty:
+                c_dict = row.iloc[0].to_dict()
+                c_dict["mapping_score"] = score
+                results.append(c_dict)
+                
+        return results
