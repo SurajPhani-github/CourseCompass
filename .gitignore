@@ -72,3 +72,8 @@ data/processed/*.csv
 
 # Ignore local streamlit secrets if generated
 .streamlit/secrets.toml
+
+# Temp files
+tmp/
+*.webp
+*.log

@@ -183,6 +183,10 @@ def _recency_weights(df: pd.DataFrame, halflife: float = 90.0) -> pd.Series:
 
 def generate_training_data(
     user_pref_override: Optional[dict] = None,
+    interactions_df:    Optional[pd.DataFrame] = None,
+    courses_df:         Optional[pd.DataFrame] = None,
+    profiles_df:        Optional[pd.DataFrame] = None,
+    transitions_df:     Optional[pd.DataFrame] = None,
 ) -> tuple[pd.DataFrame, pd.Series, list[str], pd.DataFrame]:
     """
     Build the full feature matrix for training the LightGBM ranker.
@@ -193,6 +197,10 @@ def generate_training_data(
                          specific learners. Key = learner_id,
                          value = {preferred_difficulty: float, pace_preference: float}
                          This mirrors the UI "session preference" override.
+    interactions_df    : In-memory interactions
+    courses_df         : In-memory course catalog
+    profiles_df        : In-memory learner profiles
+    transitions_df     : In-memory sequence data
 
     Returns
     -------
@@ -201,8 +209,18 @@ def generate_training_data(
     feature_cols : ordered list of feature column names
     df           : full merged DataFrame (for debugging)
     """
-    log.info("Loading base data for ML Ranker…")
-    interactions, courses, profiles, transitions = load_data()
+    log.info("Loading data for ML Ranker feature generation…")
+    
+    # ── 0. Source Selection ──────────────────────────────────────────────────
+    if interactions_df is not None and courses_df is not None and profiles_df is not None:
+        interactions = interactions_df.copy()
+        courses      = courses_df.copy()
+        profiles     = profiles_df.copy()
+        # Transitions are optional for now
+        transitions  = transitions_df.copy() if transitions_df is not None else pd.DataFrame()
+    else:
+        # Fallback to absolute file paths for standalone training
+        interactions, courses, profiles, transitions = load_data()
 
     # ── 1. Compute dynamic preferences for all learners ──────────────────────
     log.info("Computing dynamic preferences from interaction history…")
@@ -286,10 +304,11 @@ def generate_training_data(
     df = df.sort_values(["learner_id", "timestamp"])
     df["prev_course_id"] = df.groupby("learner_id")["course_id"].shift(1)
 
-    trans_join = transitions[["prev_course_id", "next_course_id", "high_success_transition_score"]].copy()
-    trans_join = trans_join.rename(columns={"next_course_id": "course_id"})
-    df = df.merge(trans_join, on=["prev_course_id", "course_id"], how="left")
-    df["high_success_transition_score"] = df["high_success_transition_score"].fillna(0.0)
+    if not transitions.empty and "prev_course_id" in transitions.columns:
+        trans_join = transitions[["prev_course_id", "next_course_id", "high_success_transition_score"]].copy()
+        trans_join = trans_join.rename(columns={"next_course_id": "course_id"})
+        df = df.merge(trans_join, on=["prev_course_id", "course_id"], how="left")
+    df["high_success_transition_score"] = df.get("high_success_transition_score", pd.Series(0.0, index=df.index)).fillna(0.0)
 
     # ── 9. Row-level behavioral signals ──────────────────────────────────────
     df["streak_flag"]   = df.get("streak_flag",   pd.Series(0, index=df.index)).fillna(0.0)

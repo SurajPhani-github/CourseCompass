@@ -1,5 +1,5 @@
 # CourseCompass: Adaptive Learning Ecosystem
-
+aaa
 CourseCompass is a next-generation, AI-driven adaptive learning platform that generates dynamic, prerequisite-aware learning roadmaps. It transitions from traditional heuristic-based recommendations to a fully ML-backed infrastructure with semantic retrieval, collaborative filtering, and generative AI.
 
 ## 🧠 Core Architecture & Models Used

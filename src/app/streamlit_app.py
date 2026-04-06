@@ -576,7 +576,7 @@ def load_engine(enriched: pd.DataFrame):
     return get_engine(enriched)
 
 @st.cache_resource(show_spinner=False)
-def load_graph_engine(enriched: pd.DataFrame, interactions: pd.DataFrame, cache_bust=10):
+def load_graph_engine(enriched: pd.DataFrame, interactions: pd.DataFrame, profiles: pd.DataFrame, cache_bust=10):
     import importlib
     import sys
     if "src.recommender.roadmap_engine" in sys.modules:
@@ -590,7 +590,7 @@ def load_graph_engine(enriched: pd.DataFrame, interactions: pd.DataFrame, cache_
     # The first run will build the model, encode 15k courses, and save to .pkl. Subsequent runs load the .pkl
     mapper.build_or_load_mapping(force_rebuild=False)
     decomposer = GoalDecomposer(kg, mapper)
-    engine = RoadmapEngine(kg, mapper, decomposer, enriched, interactions)
+    engine = RoadmapEngine(kg, mapper, decomposer, enriched, interactions, profiles)
     return engine
 
 @st.cache_resource(show_spinner=False)
@@ -838,7 +838,7 @@ def main():
     with st.spinner("Initializing AI engines & embeddings (may take ~15s on first launch)…"):
         try:
             engine = load_engine(enriched)
-            graph_engine = load_graph_engine(enriched, interactions, cache_bust=10)
+            graph_engine = load_graph_engine(enriched, interactions, profiles, cache_bust=10)
         except Exception as e:
             st.error(f"Error initializing engine: {e}")
             return

@@ -16,16 +16,77 @@ from src.recommender.goal_decomposer import GoalDecomposer
 from src.recommender.content_similarity import get_engine
 from src.recommender.ranker_features import compute_dynamic_preferences
 from src.recommender.llm_branching import generate_roadmap_branches
+from src.recommender.learned_heuristics import get_trained_ranker, learned_score, predict_mastery
 
 log = logging.getLogger(__name__)
 
 class RoadmapEngine:
-    def __init__(self, kg: KnowledgeGraph, mapper: CourseSkillMapper, decomposer: GoalDecomposer, enriched_df: pd.DataFrame, interactions_df: pd.DataFrame):
+    def __init__(self, kg: KnowledgeGraph, mapper: CourseSkillMapper, decomposer: GoalDecomposer, enriched_df: pd.DataFrame, interactions_df: pd.DataFrame, profiles_df: pd.DataFrame):
         self.kg = kg
         self.mapper = mapper
         self.decomposer = decomposer
         self.enriched = enriched_df
         self.interactions = interactions_df
+        self.profiles = profiles_df
+
+    def _build_inference_feature_dict(self, learner_id: str | None, dyn_prefs: dict, course_row: pd.Series) -> dict:
+        """
+        Constructs a complete 24-feature dictionary for a single candidate course.
+        Categorizes features into 3 Tiers (Learner, Course, Contextual).
+        """
+        # Tier 1: Learner-Side (Profile + Dynamic Prefs)
+        profile = self.profiles[self.profiles["learner_id"] == learner_id] if learner_id and self.profiles is not None else pd.DataFrame()
+        p = profile.iloc[0] if not profile.empty else {}
+        
+        # Tier 2: Course-Side (Metadata)
+        c = course_row
+        diff_map = {"Beginner": 1, "Intermediate": 2, "Advanced": 3}
+        wl_map = {"Light": 1, "Medium": 2, "Heavy": 3}
+        
+        c_diff_val = diff_map.get(str(c.get("difficulty_level", "Intermediate")), 2)
+        c_wl_val = wl_map.get(str(c.get("workload_bucket", "Medium")), 2)
+        
+        # Tier 1 Preference data
+        pref_diff = dyn_prefs.get("preferred_difficulty", 2.0)
+        pref_pace = dyn_prefs.get("pace_preference", 2.0)
+        
+        feat = {
+            # Dynamic user preference (Tier 1)
+            "preferred_difficulty": float(pref_diff),
+            "pace_preference":      float(pref_pace),
+            "is_progressing":       float(int(dyn_prefs.get("is_progressing", False))),
+            
+            # Static profile signals (Tier 1)
+            "proficiency_score":              float(p.get("proficiency_score", 0.5)),
+            "workload_tolerance_score":       float(p.get("workload_tolerance_score", 0.5)),
+            "consistency_index":              float(p.get("consistency_index", 0.5)),
+            "curiosity_index":                float(p.get("curiosity_index", 0.5)),
+            "completion_likelihood_baseline": float(p.get("completion_likelihood_baseline", 0.5)),
+            "avg_completion_rate":            float(p.get("avg_completion_rate", 0.5)),
+            "avg_quiz_score":                 float(p.get("avg_quiz_score", 0.5)),
+            "avg_engagement_score":           float(p.get("avg_engagement_score", 50.0)),
+            "total_courses_completed":        float(p.get("total_courses_completed", 0.0)),
+            
+            # Course static features (Tier 2)
+            "course_difficulty_val":    float(c_diff_val),
+            "course_workload_val":      float(c_wl_val),
+            "popularity_proxy":         float(c.get("popularity_proxy", 0.5)),
+            "quality_proxy":            float(c.get("quality_proxy", 0.5)),
+            "estimated_duration_hours": float(c.get("estimated_duration_hours", 12.0)),
+            
+            # Affinity / match features (Tier 2 computed)
+            "difficulty_delta":   float(abs(c_diff_val - pref_diff)),
+            "pace_delta":         float(abs(c_wl_val - pref_pace)),
+            "is_domain_match":    float(int(str(p.get("dominant_domain", "")) == str(c.get("inferred_domain", "")))),
+            "is_secondary_match": float(int(str(p.get("secondary_domain", "")) == str(c.get("inferred_domain", "")))),
+            
+            # Behavioral / Contextual Tier 3 (Inference-time defaults)
+            "high_success_transition_score": 0.0,
+            "streak_flag":                   0.0,
+            "session_order":                 1.0, # Default to first in sequence
+            "recency_weight":                1.0
+        }
+        return feat
         
     def _get_user_mastered_nodes(self, learner_id: str | None) -> set[str]:
         """Infers mastered skills by looking at the user's historical course completions."""
@@ -38,7 +99,7 @@ class RoadmapEngine:
             return set()
             
         # Keep courses with good completion and outcome
-        passed = user_history[(user_history["completion_rate"] > 0.6) & (user_history["learning_outcome"].isin(["good", "excellent"]))]
+        passed = user_history.copy(); passed['is_mastered'] = predict_mastery(passed, self.interactions, self.enriched); passed = passed[passed['is_mastered'] == 1]
         passed_cids = passed["course_id"].astype(str).tolist()
         
         mastered_nodes = set()
@@ -51,7 +112,7 @@ class RoadmapEngine:
                         
         return mastered_nodes
 
-    def _select_best_course_for_node(self, node_id: str, dyn_prefs: dict, used_cids: set) -> dict | None:
+    def _select_best_course_for_node(self, node_id: str, dyn_prefs: dict, used_cids: set, learner_id: str | None = None) -> dict | None:
         """Finds the best single course to fulfill a single node, matching dynamic user prefs."""
         matches = self.mapper.get_courses_for_node(node_id, min_confidence=0.45)
         if not matches:
@@ -91,19 +152,26 @@ class RoadmapEngine:
 
             wl_score = 1.0 if wl_delta == 0 else (0.6 if wl_delta == 1 else 0.2)
             
-            # Heavy penalty if recommending Beginner to Advanced or Advanced to Beginner
-            if pref_diff >= 2.5 and diff_val == 1:
-                diff_score = -1.0
-            elif pref_diff <= 1.5 and diff_val == 3:
-                diff_score = -0.5
-            else:
-                diff_score = 1.0 if diff_delta == 0 else (0.6 if diff_delta == 1 else 0.2)
+            wl_score = 1.0 if wl_delta == 0 else (0.6 if wl_delta == 1 else 0.2)
+            diff_score = 1.0 if diff_delta == 0 else (0.6 if diff_delta == 1 else 0.2)
             
             pop = float(row.get("popularity_proxy", 0.5))
             qual = float(row.get("quality_proxy", 0.5))
             
-            # Simple ranking: Semantic match is still king, but difficulty is strict now
-            final = (conf * 0.40) + (diff_score * 0.25) + (wl_score * 0.15) + (qual * 0.10) + (pop * 0.10)
+            # 24-Feature ML Ranking with Tiered Feature Dict
+            if getattr(self, "interactions", None) is not None and len(self.interactions) > 0:
+                feat_dict = self._build_inference_feature_dict(learner_id, dyn_prefs, row)
+                model_bundle = get_trained_ranker(self.interactions, self.enriched, self.profiles)
+                final = learned_score(model_bundle, feat_dict)
+                
+                # Hard Penalty post-multiplier for extreme difficulty mismatch
+                if pref_diff >= 2.5 and diff_val == 1:
+                    final *= 0.2
+                elif pref_diff <= 1.5 and diff_val == 3:
+                    final *= 0.5
+            else:
+                # Heuristic fallback when no interactions exist
+                final = ((conf * 0.40) + (diff_score * 0.25) + (wl_score * 0.15) + (qual * 0.10) + (pop * 0.10))
             
             node = self.kg.get_node(node_id)
             node_level = node.level if node else ""
@@ -157,7 +225,14 @@ class RoadmapEngine:
             pop = float(row.get("popularity_proxy", 0.5))
             qual = float(row.get("quality_proxy", 0.5))
             rel = float(row["search_relevance"])
-            return (rel * 0.6) + (qual * 0.2) + (pop * 0.1) + (wl_score * 0.1)
+            # Feature construction for dynamic fallback (generic learner assumed)
+            if getattr(self, "interactions", None) is not None and len(self.interactions) > 0:
+                dyn_p = {"preferred_difficulty": 2.0, "pace_preference": pref_val, "is_progressing": False}
+                feat_dict = self._build_inference_feature_dict(None, dyn_p, row)
+                model_bundle = get_trained_ranker(self.interactions, self.enriched, self.profiles)
+                return learned_score(model_bundle, feat_dict)
+            else:
+                return ((rel * 0.6) + (qual * 0.2) + (pop * 0.1) + (wl_score * 0.1))
 
         c_df["final_score"] = c_df.apply(score_row, axis=1)
         c_df = c_df.sort_values("final_score", ascending=False)
@@ -288,7 +363,7 @@ class RoadmapEngine:
                 })
                 continue
                 
-            course = self._select_best_course_for_node(nid, dyn_prefs, used_cids)
+            course = self._select_best_course_for_node(nid, dyn_prefs, used_cids, learner_id=learner_id)
             if course:
                 used_cids.add(course["course_id"])
                 total_duration += course.get("estimated_duration_hours", 0)
@@ -415,7 +490,7 @@ class RoadmapEngine:
                 # We need to map this 'hallucinated' node to our courses.
                 # Strategy: Map using the LLM's title and description string dynamically into the mapper
                 search_text = f"{node_title}. {st_desc} {' '.join(outcomes)}"
-                course = self._select_best_course_for_synthetic_node(search_text, dyn_prefs, used_cids)
+                course = self._select_best_course_for_synthetic_node(search_text, dyn_prefs, used_cids, learner_id=learner_id)
                 
                 if course:
                     used_cids.add(course["course_id"])
@@ -461,7 +536,7 @@ class RoadmapEngine:
             "target_node": target_mock
         }
 
-    def _select_best_course_for_synthetic_node(self, query: str, dyn_prefs: dict, used_cids: set) -> dict | None:
+    def _select_best_course_for_synthetic_node(self, query: str, dyn_prefs: dict, used_cids: set, learner_id: str | None = None) -> dict | None:
         """Dynamically maps an LLM-generated stage description to existing courses."""
         # 1. Encode query
         query_emb = self.mapper.encoder.encode([query])
@@ -511,7 +586,19 @@ class RoadmapEngine:
             pop = float(row.get("popularity_proxy", 0.5))
             qual = float(row.get("quality_proxy", 0.5))
             
-            final = (conf * 0.45) + (qual * 0.15) + (diff_score * 0.15) + (wl_score * 0.15) + (pop * 0.1)
+            # 24-Feature ML Ranking for synthetic nodes
+            if getattr(self, "interactions", None) is not None and len(self.interactions) > 0:
+                feat_dict = self._build_inference_feature_dict(learner_id, dyn_prefs, row)
+                model_bundle = get_trained_ranker(self.interactions, self.enriched, self.profiles)
+                final = learned_score(model_bundle, feat_dict)
+                
+                # Hard Penalty post-multiplier for extreme difficulty mismatch
+                if pref_diff >= 2.5 and diff_val == 1:
+                    final *= 0.2
+                elif pref_diff <= 1.5 and diff_val == 3:
+                    final *= 0.5
+            else:
+                final = ((conf * 0.45) + (qual * 0.15) + (diff_score * 0.15) + (wl_score * 0.15) + (pop * 0.1))
             
             scores.append({
                 "course_id": cid,
